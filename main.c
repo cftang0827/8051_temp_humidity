@@ -12,6 +12,13 @@ sbit e =  P3^4;              //E pin connected to pin 4 of port 3
 sbit dat = 0x91;
 
 
+
+char code err[] = "Error!!\n";
+char code err2[] = "Error2\n";
+char code erro[] = "ss\n";
+char code erro2[] = "ss2\n";
+void send_string(char *mes);
+
 int I_RH, D_RH, I_T, D_T, CheckSum;
 
 int humidity, temperature;
@@ -210,6 +217,23 @@ void serial_send(unsigned char dat)
     SBUF = dat;
 }
 
+void new_request()
+{
+    dat = 0;
+    us_delay(1000);
+    dat = 1;
+}
+
+void new_response()
+{
+
+    while(dat==1);  
+    while(dat==0);
+    while(dat==1); 
+}
+
+
+
 void at2302_request()
 {      
     dat = 0;
@@ -238,26 +262,42 @@ void send_string(char *mes)
 int receive_data()
 {
     int ii = 0;
-    int c = 0;    
+    int i = 0;
+    int c = 0;
+    int highCount = 0;
+    int lowCount = 0;    
+    char ss1[5];
+   
+    
+    
     for(ii = 0; ii < 8; ii++)
     {
+        highCount = 0;
+        lowCount = 0;
         while(dat==0);
-        timer_delay30us();
-        if(dat == 1)
+        // {
+        //     lowCount++;
+        // }
+      
+        while(dat==1)
+        {
+            highCount++;
+        }    
+          
+        if(highCount > 5)
         {
             c = (c<<1) | (0x01);
-        }else
-        {
+        }else{
             c = (c<<1);
         }
-        while(dat==1);
+
     }
+
+    
     return c;
 }
 
 
-char err[] = "Error!!\n";
-char err2[] = "Error2\n";
 char cmd;
 void main()
 {
@@ -268,49 +308,65 @@ void main()
     
     lcd_init();
     uart_init();
-    
+    dat = 1;
     while(1)
     {
         cmd = uart_getc();
-        while(cmd != 'a');
-            while(1)
+        while(cmd != 'a');        
+        while(1)
+        {
+
+
+
+            new_request();
+            new_response();
+            I_RH = receive_data();
+            D_RH = receive_data();
+            I_T = receive_data();
+            D_T = receive_data();
+            CheckSum = receive_data();
+        
+
+            humidity = I_RH * 256 + D_RH;
+            temperature = I_T * 256 + D_T;
+
+            // sprintf(ss1,"I_RH=%d\n",I_RH);
+            // send_string(ss1);
+
+            // sprintf(ss1,"D_RH=%d\n", D_RH);
+            // send_string(ss1);
+
+            // sprintf(ss1,"I_T=%d\n", I_T);
+            // send_string(ss1);
+            
+            // sprintf(ss1,"D_T=%d\n", D_T);
+            // send_string(ss1);
+            
+            // sprintf(ss1,"CheckSum=%d\n", CheckSum);
+            // send_string(ss1);                
+
+
+            if((I_RH + D_RH + I_T + D_T) != CheckSum )
             {
-                at2302_request();
-                at2302_response();
-                
-                I_RH = receive_data();
-                D_RH = receive_data();
-                I_T = receive_data();
-                D_T = receive_data();
-                CheckSum = receive_data();
-    
-                humidity = I_RH * 256 + D_RH;
-                temperature = I_T * 256 + D_T;
-    
-    
-                if((I_RH + D_RH + I_T + D_T) != CheckSum )
-                {
-                    lcd_init();
-                    write_string(err);
-                }else
-                {
-    
-                    sprintf(ss1,"H%d.%d\n",humidity/10,humidity%10);
-                    sprintf(ss2,"Hum: %d.%d %%",humidity/10,humidity%10);
-                    send_string(ss1);
-                    lcd_cmd(0x80);
-                    write_string(ss2);
-    
-                    
-                    sprintf(ss1,"T%d.%d\n", temperature / 10,temperature%10);
-                    sprintf(ss2,"Temp: %d.%d C", temperature / 10,temperature%10);
-                    
-                    send_string(ss1);
-                    lcd_cmd(0xC0);
-                    write_string(ss2); 
-                    us_delay(2000000);
-                }
+                lcd_init();
+                write_string(err);
+                us_delay(2000000);        
+            }else
+            {
+                sprintf(ss2,"Hum: %d.%d %%",humidity/10,humidity%10);
+                sprintf(ss1,"H%d.%d\n",humidity/10,humidity%10);
+                send_string(ss1);
+                lcd_cmd(0x80);
+                write_string(ss2);
+
+                sprintf(ss2,"Temp: %d.%d C", temperature / 10,temperature%10);
+                sprintf(ss1,"T%d.%d\n",temperature / 10,temperature%10);
+                send_string(ss1);
+                lcd_cmd(0xC0);
+                write_string(ss2); 
+                us_delay(2000000);
             }
+        }
 
 
     }
